@@ -41,7 +41,7 @@ def chi_squared(y_mea, y_mea_std, y_exp):
     
     return chi2_stat
 
-outfp = "results_1/avg_pulse_{}.bin".format(runno)
+outfp = "results/avg_pulse_{}.bin".format(runno)
 with open(outfp, 'rb') as fn:
      raw=pickle.load(fn)
 
@@ -107,8 +107,12 @@ avg_err=raw[1]
 #plt.show()
 #
 chi2_list = []
-for ilink in range(1):
-    for ich in range(1):
+A0_list=[]
+tp_list=[]
+t0_list=[]
+bl_list=[]
+for ilink in range(10):
+    for ich in range(256):
         apulse = avg[ilink][ich]
         apulse_err = avg_err[ilink][ich]
         pmax = np.amax(apulse)
@@ -122,6 +126,10 @@ for ilink in range(1):
         #chi2,pval = chi_squared(apulse[maxpos-nbf:maxpos+naf]-pbl, apulse_exp)
         chi2 = chi_squared(apulse[maxpos-nbf:maxpos+naf], apulse_err[maxpos-nbf:maxpos+naf], apulse_exp)
         chi2_list.append(chi2)
+        A0_list.append(popt[0])
+        tp_list.append(popt[1])
+        t0_list.append(popt[2])
+        bl_list.append(popt[3])
         
         plt.scatter(a_xx, apulse[maxpos-nbf:maxpos+naf], c='r')
         #plt.errorbar(a_xx, apulse[maxpos-5:maxpos+20]-pbl,yerr=apulse_err[maxpos-5:maxpos+20],fmt='o')
@@ -135,8 +143,12 @@ for ilink in range(1):
         plt.text(8,pmax-3500,'t0=%.2f'%popt[2],fontsize = 15)
         plt.text(8,pmax-4500,'bl=%.2f'%popt[3],fontsize = 15)
         plt.text(8,pmax-5500,'chi2/dof=%.2f'%chi2,fontsize = 15)
-        #plt.savefig("plots/run%d_link%d_ch%d"%(runno,ilink,ich))
-        #plt.close()
+        plt.savefig("plots/run%d_link%d_ch%d"%(runno,ilink,ich))
+        plt.close()
 
 #plt.plot(range(2560),chi2_list)
-plt.show()
+#plt.show()
+
+outfp1 = "results/fit_{}.bin".format(runno)
+with open(outfp1, 'wb') as fn:
+     pickle.dump([A0_list, tp_list, t0_list, bl_list, chi2_list], fn)

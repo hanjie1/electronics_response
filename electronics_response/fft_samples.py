@@ -35,6 +35,7 @@ avg=raw[0]
 avg_err=raw[1]
 
 dt = 0.5e-6 # MHz
+tp_init = 2/0.5 # ticks
 
 for ilink in range(1):
     for ich in range(1):
@@ -43,54 +44,53 @@ for ilink in range(1):
         maxpos = np.argmax(apulse)
         nn = len(apulse)
 
-        nbf = 50
-        naf = 50 
+        nbf = 11
+        naf = 10 
         tmp_pl = apulse[maxpos-nbf:maxpos+naf]
         new_nn = len(tmp_pl)
 
-        a_xx = np.array(range(new_nn))*0.5e-6
+        a_xx = np.array(range(new_nn))
 
-        popt, pcov = curve_fit(ResFunc, a_xx, tmp_pl,maxfev= 10000,p0=[80000,2e-6,2e-5,1000])
+        popt, pcov = curve_fit(ResFunc, a_xx, tmp_pl,maxfev= 10000,p0=[80000,tp_init,nbf-8,1000])
 
-        a_xx_1 = np.linspace(0,new_nn, 500)*0.5e-6
+        a_xx_1 = np.linspace(0,new_nn, 500)
         apulse_fit = ResFunc(a_xx_1,popt[0],popt[1],popt[2],popt[3])
 
-        fig,axes = plt.subplots(2,2,figsize=(12,6))
-        axes[0,0].plot(a_xx,tmp_pl,marker='.')
-        axes[0,0].plot(a_xx_1, apulse_fit, c='r')
-        axes[0,0].text(0.6,0.9,'A0=%.2E'%popt[0],fontsize = 12, transform=axes[0,0].transAxes)
-        axes[0,0].text(0.6,0.8,'tp=%.2E'%popt[1],fontsize = 12, transform=axes[0,0].transAxes)
-        axes[0,0].text(0.6,0.7,'t0=%.2E'%popt[2],fontsize = 12, transform=axes[0,0].transAxes)
-        axes[0,0].text(0.6,0.6,'Ab=%.2E'%popt[3],fontsize = 12, transform=axes[0,0].transAxes)
+        fig,axes = plt.subplots(1,2,figsize=(12,6))
+        axes[0].plot(a_xx,tmp_pl,marker='.')
+        axes[0].plot(a_xx_1, apulse_fit, c='r')
+        axes[0].text(0.7,0.9,'A0=%.1f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.8,'tp=%.1f'%popt[1],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.7,'t0=%.1f'%popt[2],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.6,'Ab=%.1f'%popt[3],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].set_title("original pulse")
 
-        a_fft = np.abs(np.fft.fft(tmp_pl))
-        freq = np.fft.fftfreq(len(tmp_pl), d=dt)
-        #axes[0,1].plot(freq[1:new_nn//2],a_fft[1:new_nn//2],marker='.')
-        axes[0,1].plot(freq,a_fft,marker='.')
+        a_fft = np.fft.fft(tmp_pl)
+        freq = np.fft.fftfreq(new_nn)
 
-        new_freq = freq
-#        print(freq)
-        new_fft = a_fft 
-        extrapos=0
-        for i in range(len(freq)//2-1):
-            tmp_f = freq[i]+(freq[i+1]-freq[i])/2
-            tmp_a = a_fft[i]+(a_fft[i+1]-a_fft[i])/2
+        new_dt = 0.1
+        nextra = int(new_nn/new_dt-new_nn)
+        new_fft = np.concatenate((a_fft[:new_nn//2+1],np.zeros(nextra),a_fft[new_nn//2+1:]),dtype = "complex_")
 
-            new_freq = np.insert(new_freq, 1+i+extrapos, tmp_f) 
-            new_fft = np.insert(new_fft, 1+i+extrapos, tmp_a) 
-            extrapos = extrapos+1
+        new_pl = np.fft.ifft(new_fft)
+        new_pl = new_pl.real*tmp_pl[0]/new_pl[0].real
+        new_tt = np.arange(len(new_pl))*new_dt
 
-        for i in range(len(freq)//2,len(freq)-1):
-            tmp_f = freq[i]+(freq[i+1]-freq[i])/2
-            new_freq = np.insert(new_freq, 1+i+extrapos, tmp_f) 
-            tmp_a = a_fft[i]+(a_fft[i+1]-a_fft[i])/2
-            new_fft = np.insert(new_fft, 1+i+extrapos, tmp_a) 
-            extrapos = extrapos+1
+        axes[1].plot(new_tt,new_pl,marker='.')
+        axes[1].set_title("pulse with increased time resolution")
 
-        axes[1,0].plot(new_freq,new_fft)
+        fig1,axes1 = plt.subplots(1,2,figsize=(12,6))
+        start = int(round(popt[2]/new_dt,0))
+        print("start t: ",start)
 
-#        print(new_freq)
-        new_pl = np.abs(np.fft.irfft(new_fft))
+        real_pl = new_pl[start:]
+        new_x = np.array(range(len(real_pl)))*new_dt
+        ideal_pl = ResFunc(new_x,popt[0],popt[1],0,popt[3])
 
-        axes[1,1].plot(range(len(new_pl)),new_pl)
+        axes1[0].plot(new_x, real_pl, marker='.',label='real')
+        axes1[0].plot(new_x, ideal_pl, marker='.',label='ideal')
+        axes1[0].legend()
+
+        axes1[1].plot(new_x, ideal_pl/real_pl)
+
 plt.show()

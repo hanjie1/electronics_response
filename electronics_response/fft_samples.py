@@ -56,7 +56,7 @@ for ilink in range(1):
         a_xx_1 = np.linspace(0,new_nn, 500)
         apulse_fit = ResFunc(a_xx_1,popt[0],popt[1],popt[2],popt[3])
 
-        fig,axes = plt.subplots(1,2,figsize=(12,6))
+        fig,axes = plt.subplots(1,3,figsize=(12,6))
         axes[0].plot(a_xx,tmp_pl,marker='.')
         axes[0].plot(a_xx_1, apulse_fit, c='r')
         axes[0].text(0.7,0.9,'A0=%.1f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
@@ -79,7 +79,6 @@ for ilink in range(1):
         axes[1].plot(new_tt,new_pl,marker='.')
         axes[1].set_title("pulse with increased time resolution")
 
-        fig1,axes1 = plt.subplots(1,2,figsize=(12,6))
         start = int(round(popt[2]/new_dt,0))
         print("start t: ",start)
 
@@ -87,10 +86,43 @@ for ilink in range(1):
         new_x = np.array(range(len(real_pl)))*new_dt
         ideal_pl = ResFunc(new_x,popt[0],popt[1],0,popt[3])
 
-        axes1[0].plot(new_x, real_pl, marker='.',label='real')
-        axes1[0].plot(new_x, ideal_pl, marker='.',label='ideal')
-        axes1[0].legend()
+        axes[2].plot(new_x, real_pl, marker='.',label='real')
+        axes[2].plot(new_x, ideal_pl, marker='.',label='ideal')
+        axes[2].legend()
+        axes[2].set_title("pulse start at t0")
 
-        axes1[1].plot(new_x, ideal_pl/real_pl)
+        fig1,axes1 = plt.subplots(2,2,figsize=(12,6))
+
+        ideal_fft = np.fft.fft(ideal_pl)
+        real_fft = np.fft.fft(real_pl)
+
+        all_n = len(ideal_pl)
+        new_freq = np.fft.fftfreq(all_n,d=new_dt*dt)
+        #tmp_n = int(round(new_nn-popt[2]))
+        tmp_n = all_n
+        axes1[0,0].plot(new_freq[1:tmp_n//2],real_fft[1:tmp_n//2].real,marker='.',label='real')
+        axes1[0,0].plot(new_freq[1:tmp_n//2],ideal_fft[1:tmp_n//2].real,marker='.',label='ideal')
+        axes1[0,0].set_title("FFT real part")
+        axes1[0,0].set_xlabel("Hz")
+        axes1[0,0].legend()
+  
+        axes1[0,1].plot(new_freq[1:tmp_n//2],real_fft[1:tmp_n//2].imag,marker='.',label='real')
+        axes1[0,1].plot(new_freq[1:tmp_n//2],ideal_fft[1:tmp_n//2].imag,marker='.',label='ideal')
+        axes1[0,1].set_title("FFT imaginary part")
+        axes1[0,1].set_xlabel("Hz")
+        axes1[0,1].legend()
+  
+        #axes1[1,0].plot(new_x, ideal_pl/real_pl)
+        #axes1[1,0].set_title("time domain: ideal/real")
+        #axes1[1,0].set_xlabel("ticks")
+
+        axes1[1,0].plot(new_freq[1:tmp_n//2], ideal_fft[1:tmp_n//2].real/real_fft[1:tmp_n//2].real,marker='.')
+        axes1[1,0].set_title("ideal/real real part")
+        axes1[1,0].set_xlabel("Hz")
+
+        axes1[1,1].plot(new_freq[1:tmp_n//2], ideal_fft[1:tmp_n//2].imag/real_fft[1:tmp_n//2].imag,marker='.')
+        axes1[1,1].set_title("ideal/real imaginary part")
+        axes1[1,1].set_xlabel("Hz")
+
 
 plt.show()

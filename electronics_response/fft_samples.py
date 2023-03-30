@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.stats import chi2
+import cmath
 
 def ResFunc(x, par0, par1, par2, par3):
 
@@ -34,8 +35,8 @@ with open(outfp, 'rb') as fn:
 avg=raw[0]
 avg_err=raw[1]
 
-dt = 0.5e-6 # MHz
-tp_init = 2/0.5 # ticks
+dt = 0.5 # us
+tp_init = 2 #us
 
 for ilink in range(1):
     for ich in range(1):
@@ -44,85 +45,41 @@ for ilink in range(1):
         maxpos = np.argmax(apulse)
         nn = len(apulse)
 
-        nbf = 11
-        naf = 10 
+        nbf = 10
+        naf = 8 
         tmp_pl = apulse[maxpos-nbf:maxpos+naf]
         new_nn = len(tmp_pl)
 
-        a_xx = np.array(range(new_nn))
+        a_xx = np.array(range(new_nn))*dt
 
-        popt, pcov = curve_fit(ResFunc, a_xx, tmp_pl,maxfev= 10000,p0=[80000,tp_init,nbf-8,1000])
+        popt, pcov = curve_fit(ResFunc, a_xx, tmp_pl,maxfev= 10000,p0=[80000,tp_init,(nbf-8)*0.5,1000])
 
-        a_xx_1 = np.linspace(0,new_nn, 500)
+        a_xx_1 = np.linspace(0,new_nn*0.5, 500)
         apulse_fit = ResFunc(a_xx_1,popt[0],popt[1],popt[2],popt[3])
 
-        fig,axes = plt.subplots(1,3,figsize=(12,6))
+        fig,axes = plt.subplots(1,2,figsize=(12,6))
         axes[0].plot(a_xx,tmp_pl,marker='.')
         axes[0].plot(a_xx_1, apulse_fit, c='r')
-        axes[0].text(0.7,0.9,'A0=%.1f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.7,0.8,'tp=%.1f'%popt[1],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.7,0.7,'t0=%.1f'%popt[2],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.7,0.6,'Ab=%.1f'%popt[3],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.9,'A0=%.2f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.8,'tp=%.2f'%popt[1],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.7,'t0=%.2f'%popt[2],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.7,0.6,'Ab=%.2f'%popt[3],fontsize = 12, transform=axes[0].transAxes)
         axes[0].set_title("original pulse")
 
-        a_fft = np.fft.fft(tmp_pl)
-        freq = np.fft.fftfreq(new_nn)
+        a_fft = np.fft.rfft(apulse[maxpos-nbf:maxpos+20])
+        new_nn_1 = nbf+20
+        freq = np.fft.rfftfreq(new_nn_1, d=dt)
 
-        new_dt = 0.1
-        nextra = int(new_nn/new_dt-new_nn)
-        new_fft = np.concatenate((a_fft[:new_nn//2+1],np.zeros(nextra),a_fft[new_nn//2+1:]),dtype = "complex_")
-
-        new_pl = np.fft.ifft(new_fft)
-        new_pl = new_pl.real*tmp_pl[0]/new_pl[0].real
-        new_tt = np.arange(len(new_pl))*new_dt
-
-        axes[1].plot(new_tt,new_pl,marker='.')
-        axes[1].set_title("pulse with increased time resolution")
-
-        start = int(round(popt[2]/new_dt,0))
-        print("start t: ",start)
-
-        real_pl = new_pl[start:]
-        new_x = np.array(range(len(real_pl)))*new_dt
-        ideal_pl = ResFunc(new_x,popt[0],popt[1],0,popt[3])
-
-        axes[2].plot(new_x, real_pl, marker='.',label='real')
-        axes[2].plot(new_x, ideal_pl, marker='.',label='ideal')
-        axes[2].legend()
-        axes[2].set_title("pulse start at t0")
-
-        fig1,axes1 = plt.subplots(2,2,figsize=(12,6))
-
-        ideal_fft = np.fft.fft(ideal_pl)
-        real_fft = np.fft.fft(real_pl)
-
-        all_n = len(ideal_pl)
-        new_freq = np.fft.fftfreq(all_n,d=new_dt*dt)
-        #tmp_n = int(round(new_nn-popt[2]))
-        tmp_n = all_n
-        axes1[0,0].plot(new_freq[1:tmp_n//2],real_fft[1:tmp_n//2].real,marker='.',label='real')
-        axes1[0,0].plot(new_freq[1:tmp_n//2],ideal_fft[1:tmp_n//2].real,marker='.',label='ideal')
-        axes1[0,0].set_title("FFT real part")
-        axes1[0,0].set_xlabel("Hz")
-        axes1[0,0].legend()
-  
-        axes1[0,1].plot(new_freq[1:tmp_n//2],real_fft[1:tmp_n//2].imag,marker='.',label='real')
-        axes1[0,1].plot(new_freq[1:tmp_n//2],ideal_fft[1:tmp_n//2].imag,marker='.',label='ideal')
-        axes1[0,1].set_title("FFT imaginary part")
-        axes1[0,1].set_xlabel("Hz")
-        axes1[0,1].legend()
-  
-        #axes1[1,0].plot(new_x, ideal_pl/real_pl)
-        #axes1[1,0].set_title("time domain: ideal/real")
-        #axes1[1,0].set_xlabel("ticks")
-
-        axes1[1,0].plot(new_freq[1:tmp_n//2], ideal_fft[1:tmp_n//2].real/real_fft[1:tmp_n//2].real,marker='.')
-        axes1[1,0].set_title("ideal/real real part")
-        axes1[1,0].set_xlabel("Hz")
-
-        axes1[1,1].plot(new_freq[1:tmp_n//2], ideal_fft[1:tmp_n//2].imag/real_fft[1:tmp_n//2].imag,marker='.')
-        axes1[1,1].set_title("ideal/real imaginary part")
-        axes1[1,1].set_xlabel("Hz")
+        new_dt = 0.5
+        new_fft_1 = [a_fft[i]*np.exp(2j*np.pi*freq[i]*popt[2]) for i in range(len(a_fft))]
+        nextra = int(new_nn_1/new_dt-new_nn_1)
+        new_fft_2 = np.concatenate((new_fft_1,np.zeros(nextra//2)),dtype = "complex_")
 
 
-plt.show()
+        new_pl = np.fft.irfft(new_fft_2)
+        new_pl = new_pl*tmp_pl[0]/new_pl[0]
+
+        new_tt = np.arange(len(new_pl))*new_dt*dt
+        axes[1].plot(new_tt,new_pl, marker='.')
+        plt.show()
+

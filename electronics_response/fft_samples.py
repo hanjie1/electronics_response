@@ -57,37 +57,56 @@ for ilink in range(1):
         a_xx_1 = np.linspace(0,new_nn*0.5, 500)
         apulse_fit = ResFunc(a_xx_1,popt[0],popt[1],popt[2],popt[3])
 
-        fig,axes = plt.subplots(1,2,figsize=(12,6))
+        fig,axes = plt.subplots(1,3,figsize=(12,6))
         axes[0].plot(a_xx,tmp_pl,marker='.')
         axes[0].plot(a_xx_1, apulse_fit, c='r')
-        axes[0].text(0.2,0.9,'A0=%.3f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.2,0.8,'tp=%.3f'%popt[1],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.2,0.7,'t0=%.3f'%popt[2],fontsize = 12, transform=axes[0].transAxes)
-        axes[0].text(0.2,0.6,'Ab=%.3f'%popt[3],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.1,0.9,'A0=%.3f'%popt[0],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.1,0.8,'tp=%.3f'%popt[1],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.1,0.7,'t0=%.3f'%popt[2],fontsize = 12, transform=axes[0].transAxes)
+        axes[0].text(0.1,0.6,'Ab=%.3f'%popt[3],fontsize = 12, transform=axes[0].transAxes)
         axes[0].set_title("original pulse")
         axes[0].set_xlabel("us")
 
-        a_fft = np.fft.rfft(apulse[maxpos-nbf:maxpos+16])
+        a_fft = np.fft.fft(apulse[maxpos-nbf:maxpos+16])
         new_nn_1 = nbf+16
-        freq = np.fft.rfftfreq(new_nn_1, d=dt)
+        freq = np.fft.fftfreq(new_nn_1, d=dt)
 
-        new_dt = 0.01
+        # shift by e^(iwt)
         new_fft_1 = [a_fft[i]*np.exp(2j*np.pi*freq[i]*popt[2]) for i in range(len(a_fft))]
-        nextra = int(new_nn_1/new_dt-new_nn_1)
-        #new_fft_2 = np.concatenate((new_fft_1,np.zeros(nextra//2)),dtype = "complex_")
-        new_fft_2 = new_fft_1
+        new_pl_1 = np.fft.ifft(new_fft_1)
+        new_pl_1 = new_pl_1.real
 
+        # shift by using ideal fft
+        tt_0 = np.arange(new_nn_1)*dt
+        pl_0 =  ResFunc(tt_0,popt[0],popt[1],0,popt[3])
+        fft_0 = np.fft.fft(pl_0)
+        pl_t0 =  ResFunc(tt_0,popt[0],popt[1],popt[2],popt[3])
+        fft_t0 = np.fft.fft(pl_t0)
+        new_fft_2 = a_fft/fft_t0*fft_0 
+        new_pl_2 = np.fft.ifft(new_fft_2)
+        new_pl_2 = new_pl_2.real
 
-        new_pl = np.fft.irfft(new_fft_2)
-        pmax_1 = np.amax(new_pl)
-        pmax_2 = np.amax(apulse_fit)
-        new_pl = new_pl*pmax_2/pmax_1
+        # zero padding
+        #new_dt = 0.01
+        #nextra = int(new_nn_1/new_dt-new_nn_1)
+        #new_fft_3 = np.concatenate((new_fft_1,np.zeros(nextra//2)),dtype = "complex_")  # zero padding
+
+        apulse_fit_shift = ResFunc(a_xx_1,popt[0],popt[1],0,popt[3])
 
         #new_tt = np.arange(len(new_pl))*new_dt*dt
-        new_tt = np.arange(len(new_pl))*dt
-        axes[1].plot(new_tt,new_pl, marker='.')
-        axes[1].set_title("pulse after shifting and zero padding")
+        new_tt = np.arange(len(new_pl_1))*dt
+        axes[1].plot(new_tt,new_pl_1, marker='.')
+        axes[1].plot(a_xx_1,apulse_fit_shift, label='fitted func with t0=0')
+        axes[1].set_title("pulse shifted with e^(iwt)")
         axes[1].set_xlabel("us")
+        axes[1].legend()
+
+        axes[2].plot(new_tt,new_pl_2, marker='.')
+        axes[2].plot(a_xx_1,apulse_fit_shift, label='fitted func with t0=0')
+        axes[2].set_title("pulse shifted with func")
+        axes[2].set_xlabel("us")
+        axes[2].legend()
+
 
         plt.show()
 

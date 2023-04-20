@@ -118,6 +118,8 @@ for ilink in range(10):
                    break
                 totpls = totpls + evtdata[tt:tt+PULSE_LEN]
                 npulse = npulse+1
+                allpls.append(evtdata[tt:tt+PULSE_LEN])
+
             
         apulse = totpls/npulse
 

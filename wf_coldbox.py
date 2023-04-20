@@ -13,7 +13,7 @@ import pickle
 CHANNEL_MAP = "PD2HDChannelMap"
 CHANNELS_PER_WIB = 256
 FRAMES_PER_RECORD = 8192
-runNo = 15155
+runNo = 15910
 PULSE_LEN = 2303
 
 def get_channel_map(h5_file,channel_map=CHANNEL_MAP):
@@ -43,29 +43,11 @@ def extract_adcs(h5_file,record,frames=FRAMES_PER_RECORD):
 
         if(n_frames!=frames):
             print(f"ERROR! Number of frames found {n_frames} in {gid} is not as expected ({frames}).")
-            return adcs
+            return adcs,tmst
         adcs[i] = np_array_adc(frag)
         tmst[i] = np_array_timestamp(frag)
 
     return adcs,tmst
-
-def ResFunc(x, par0, par1):
-    A1 = 4.31054*par0
-    A2 = 2.6202*par0
-    A3 = 0.464924*par0
-    A4 = 0.762456*par0
-    A5 = 0.327684*par0
-
-    E1 = np.exp(-2.94809*x/par1)
-    E2 = np.exp(-2.82833*x/par1)
-    E3 = np.exp(-2.40318*x/par1)
-
-    lambda1 = 1.19361*x/par1
-    lambda2 = 2.38722*x/par1
-    lambda3 = 2.5928*x/par1
-    lambda4 = 5.18561*x/par1
-
-    return A1*E1-A2*E2*(np.cos(lambda1)+np.cos(lambda1)*np.cos(lambda2)+np.sin(lambda1)*np.sin(lambda2))+A3*E3*(np.cos(lambda3)+np.cos(lambda3)*np.cos(lambda4)+np.sin(lambda3)*np.sin(lambda4))+A4*E2*(np.sin(lambda1)-np.cos(lambda2)*np.sin(lambda1)+np.cos(lambda1)*np.sin(lambda2))-A5*E3*(np.sin(lambda3)-np.cos(lambda4)*np.sin(lambda3)+np.cos(lambda3)*np.sin(lambda4))
 
 ch_map = detchannelmaps.make_map(CHANNEL_MAP)
 written_hdf5_files = glob.glob("/nfs/rscratch/hanjie/*{}_*".format(runNo))
@@ -87,8 +69,9 @@ for i in range(nfile):
     if nevent>500:
         nevent=500
     for iev in range(nevent):
-        all_adcs.append(extract_adcs(h5_file,records[iev])[0])
-        all_tmst.append(extract_adcs(h5_file,records[iev])[1])
+        tmp = extract_adcs(h5_file,records[iev])
+        all_adcs.append(tmp[0])
+        all_tmst.append(tmp[1])
 
 #samples=all_adcs[0][0,:,3]
 #xx=range(2303)
@@ -100,13 +83,12 @@ avgpulse = []
 plstd = []
 A0_np = np.zeros((10,256))
 tp_np = np.zeros((10,256))
-#for ilink in range(10):
-#    for ich in range(256):
 
 for ilink in range(10):
     avgpulse.append([])
     plstd.append([])
     for ich in range(256):
+        #print(ilink, ich)
         npulse=0
         totpls=np.zeros(PULSE_LEN)
         allpls = []
@@ -118,11 +100,11 @@ for ilink in range(10):
                peak_val = evtdata[peak1_pos]
 
                if peak1_pos>(PULSE_LEN-300):
-                  t0 = np.argmax(evtdata[peak1_pos+300:peak1_pos+300+PULSE_LEN])
+                  t0 = peak1_pos+300+np.argmax(evtdata[peak1_pos+300:peak1_pos+300+PULSE_LEN])
                   t0 = t0-300
                   totpls = totpls + evtdata[t0:t0+PULSE_LEN]
-                  t0 = all_tmst[0][ilink][t0]
                   allpls.append(evtdata[t0:t0+PULSE_LEN])
+                  t0 = all_tmst[0][ilink][t0]
                else:
                   totpls = totpls + evtdata[:PULSE_LEN]
                   t0 = all_tmst[0][ilink][0]
@@ -132,16 +114,17 @@ for ilink in range(10):
             start_t = (PULSE_LEN*32-(all_tmst[iev][ilink][0]-t0)%(PULSE_LEN*32))//32
             end_t = len(evtdata)-PULSE_LEN
             for tt in range(start_t, end_t, PULSE_LEN):
+                if (tt+PULSE_LEN)>len(evtdata):
+                   break
                 totpls = totpls + evtdata[tt:tt+PULSE_LEN]
                 npulse = npulse+1
-                allpls.append(evtdata[tt:tt+PULSE_LEN])
             
         apulse = totpls/npulse
 
-        #pmax = np.amax(apulse)
-        #maxpos = np.argmax(apulse)
-        #pbl = apulse[maxpos-5]
- 
+        #plt.plot(range(len(apulse)),apulse)
+        #plt.show()
+        #break
+
         pl_std=[]
         allpls = np.array(allpls)
         for ibin in range(PULSE_LEN):
@@ -150,31 +133,7 @@ for ilink in range(10):
         plstd[ilink].append(pl_std)
         avgpulse[ilink].append(apulse)
 
-#        a_xx = np.array(range(25))*0.5
-#        popt, pcov = curve_fit(ResFunc, a_xx, apulse[maxpos-5:maxpos+20]-pbl)
-#        A0_np[ilink][ich]=popt[0]
-#        tp_np[ilink][ich]=popt[1]
-#
-#        plt.scatter(a_xx, apulse[maxpos-5:maxpos+20]-pbl,c='r')
-#        xx = np.linspace(0,25,100)*0.5
-#        plt.plot(xx, ResFunc(xx,popt[0],popt[1]))
-#        plt.xlabel('us')
-#        plt.ylabel('ADC')
-#        plt.title('link%d chan%d'%(ilink,ich))
-#        plt.text(8,pmax-1500,'A0=%.2f'%popt[0],fontsize = 15)
-#        plt.text(8,pmax-2500,'tp=%.2f'%popt[1],fontsize = 15)
-#        plt.savefig("plots/run%d_link%d_ch%d"%(runNo,ilink,ich))
-#        plt.close()
-
-outfp = "results_1/avg_pulse_{}.bin".format(runNo)
+outfp = "results/avg_pulse_{}.bin".format(runNo)
 with open(outfp, 'wb') as fn:
      pickle.dump([avgpulse,plstd], fn)
-
-#outfp = "results/A0_{}.bin".format(runNo)
-#with open(outfp, 'wb') as fn:
-#     pickle.dump(A0_np, fn)
-#
-#outfp = "results/tp_{}.bin".format(runNo)
-#with open(outfp, 'wb') as fn:
-#     pickle.dump(tp_np, fn)
 
